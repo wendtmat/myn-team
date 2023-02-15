@@ -1,0 +1,119 @@
+---
+title: "The R Files"
+author: "Matthew Wendt"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading Data into R
+
+| If we tell R to read a file, one of two things can happen:
+|         1). R will read said file.
+|         2). R will read said file AND store its contents in memory.
+| 
+| R stores information to memory in the form of **objects**, which can be classified by dimension (e.g. *characters*, *vectors*, and *data frames*)
+| 
+| To ensure R **A). reads our file**, and **B). commits the content to memory**, we'll run the following code:
+
+```{r}
+setwd('C:/MYN/The R Files') # replace whatever is between '' with the correct file path for your computer
+data <- read.csv('iris.csv')
+```
+
+| The second part of this code uses the **function** *read.csv()* to import a file named 'iris.csv', and stores the output as an **object** named 'data'. But before we tell R what file to read, we need to tell it where to look. In essence, setting your **working directory** with *setwd()* parks R in the right folder, while *read.csv()* tells R what to look for when it gets there.
+|
+| Now that our data is loaded in R, we can run a few quick functions see what we're working with.
+```{r}
+str(data) 
+```
+| *str()* will tell how R has classified our **object**, including classifications for each column (or *vector*). Many of the most common errors in R arise when objects are classified incorrectly. There are a myrad of functions to change an object's class, but we'll leave our data as-is for the time being.
+```{r}
+head(data)
+head(data, n = 3)
+```
+| The *head()* function will print the first *n* rows of a data frame or matrix. By default, this number is 6; however, by specifying *n = 3*, we alter the function's behavior. These parameters are referred to as **arguments**, and boy howdy, functions have a lot of 'em. To see a full list of arguments accepted by (almost) any function, refer to **CRAN** (Comprehensive R Archive Network).
+
+# Visualizing Data
+
+| So, we've loaded our data into R (as an **object** conveniently called 'data'), let's see what we're working with...
+|
+| Base R visualization sucks, so we'll be using the **package** *ggplot2*. **Packages** in R are collections of premade functions which we load into memory (similarly to using *read.csv()*) prior to use. But before we can load a package, we need to install a local copy. To do this, we use *install.packages()*, which is a function to download (almost) any package from **CRAN**. Once we have this local copy, we never have to run this function again.  
+```{r}
+# install.packages('ggplot2') # only ever need to run this once
+library(ggplot2) # needs to be run every R session
+```
+| If we want to use a package's functions, we'll have load the package into memory using *library()*.
+|
+| Now that we've loaded the premade functions from *ggplot2* into memory, we can use *ggplot()* to visualize our data. In this case, we'll be creating box plots comparing the trait 'Sepal.Length' between 'Class'.
+```{r}
+ggplot(
+     data = data, # ggplot() argument: data = __
+     aes(
+          x = Class, # aes() argument: x = __
+          y = Sepal.Length, # aes() argument: y = __
+          fill = Class # aes() argument: fill = __
+          )) + 
+     geom_boxplot() + # ggplot geom function: geom_boxplot()
+     ggtitle('Sepal Length')
+```
+
+## Applying the Basics
+| Here's some code I wrote to import my data and average out technical reps. Because we already set the working directory in the code above, we can load our file directly. After loading the .csv and saving it as an object, we remove column number 5. Next, we use the function *aggregate()* to average by location, genoype, rep, and plating date. This function creates a data frame NA's in columns 5-8, so we remove those as well. Finally, we can rename the columns changed by *aggregate()*, which in this case are columns 1-4. 
+```{r warning = FALSE}
+#### Import Data ####
+data <- read.csv('WiDiv20_weather.csv')
+data <- data[,-5] # remove extraction date column
+
+## Average out rows with the same planting date and bio_rep number
+data <- aggregate(
+     x = data,
+     by = list(
+          data$location,
+          data$genotype,
+          data$rep,
+          data$planting_date),
+     FUN = 'mean',
+     na.rm = TRUE)
+data <- data[,-c(5:8)]
+colnames(data)[1:4] <- c('location', 'genotype', 'rep', 'planting_date') # rename columns by supplying a vector of column names
+```
+| To see what parameters our data set contains, we can run the function *colnames()*. You'll notice that this is the same function we used to modify column names; in this case, we aren't overwriting the *colnames()* output with new names.
+|
+| As our data has ~250 columns, we'll specify what range of column names we want, as to not clutter the console output. For this example, I'll subset for column names 1-25.
+```{r}
+colnames(data)[1:25]
+```
+| When we specify what column names to output, we use brackets **[]**. We can use this for most objects in R, though what we put in said brackets differs based on how many dimensions make up our data. For *colnames()*, the output is a vector, therefore we can simply place a range of numbers within the brackets **[1:25]**. If our object or output has both rows and columns, we add a comma **[,]** to separate rows and columns **[(row), (column)]**. You can follow this same pattern for 3 or 4 dimensional data, where **[(dim1),(dim2),(dim3),...]**.
+|
+# Linear Modeling
+| Our data contains both **independent** (predictor) and **dependent** (reponse) variables. One of the simplest questions in statistics is whether **x** seems to impact **y**. To do so, we can fit **linear models** which regress dependent response variables on independent predictors. For this example, we'll see which of our four independent variables seem to impact our trait of interest: 'sl.total'.
+```{r}
+model <- lm(data = data,
+            sl.total ~ location + genotype + rep + planting_date
+            )
+anova(model)
+```
+| We can even use this *anova()* output to quickly calculate partial R^2 values. We'll take the 'Sum Sq' column from our anova results, save it as a vector, and calculate the sum. For this example, 'Sum Sq' is column #2. While using **brackets** to subset objects, we can specify row/columns in a few different ways. As an example, we'll subset the 'results' object by inputing column and row names as **characters**. We'll then divide by 'results_ss' to find the partial R^2 for 'location'.  
+```{r}
+results <- anova(model) # data frame of anova() results
+results_ss <- sum(results[,2]) # total SS
+results['location', 'Sum Sq'] / results_ss
+results['genotype', 'Sum Sq'] / results_ss
+```
+| From our results, we can see the partial R^2 for 'location' is ~0.04, while the partial R^2 for 'genotype' is ~0.77.
+| While we're at it, lets save our results into an empty data frame for future use. We'll need to specify what row and column to save our results to in the empty data frame, as well as name the rows with the proper parameter name.
+```{r}
+results_rsquared <- data.frame(matrix(nrow = 2, ncol = 1)) # empty frame
+results_rsquared[1,1] <- results['location', 'Sum Sq'] / results_ss
+results_rsquared[2,1] <- results['genotype', 'Sum Sq'] / results_ss
+rownames(results_rsquared) <- c('location', 'genotype')
+colnames(results_rsquared) <- 'Partial R^2'
+results_rsquared
+```
+|
+|
+|
